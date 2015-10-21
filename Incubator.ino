@@ -67,7 +67,7 @@ OneWire oneWire(ONE_WIRE_BUS);
 // Pass our oneWire reference to Dallas Temperature. 
 DallasTemperature sensors(&oneWire);
 
-void checkTemperature(int temp);
+bool checkTemperature(int temp);
 
 //This function will write a 2 byte integer to the eeprom at the specified address and address + 1
 void EEPROMWriteInt(int p_address, int p_value) {
@@ -179,31 +179,30 @@ void loop() {
   if(c < 0) {
     nokia.print("ERROR!\nTEMP\nSENSOR!");
     nokia.display();
-    turnOff();
-    return;
   }
   
-  checkTemperature(c);
+  if(checkTemperature(c)) {
   
-  int c1 = c / 100;  
+    int c1 = c / 100;  
+    
+    int c2 = (c % 100) / 10;
+    
+    int dest = (highTemp + lowTemp) / 2;
+    
+    int d1 = dest / 100;
+    int d2 = (dest % 100) / 10;
+    
+    char *heat = "";
+    
+    if(turnedOn) {
+      heat = "HEAT";
+    }
+    
+    sprintf(buffer, "T%d.%dC\n%s\nD%d.%dC", c1, c2, heat, d1, d2);
   
-  int c2 = (c % 100) / 10;
-  
-  int dest = (highTemp + lowTemp) / 2;
-  
-  int d1 = dest / 100;
-  int d2 = (dest % 100) / 10;
-  
-  char *heat = "";
-  
-  if(turnedOn) {
-    heat = "HEAT";
+    nokia.print(buffer);
+    nokia.display();
   }
-  
-  sprintf(buffer, "T%d.%dC\n%s\nD%d.%dC", c1, c2, heat, d1, d2);
-
-  nokia.print(buffer);
-  nokia.display();
   
   delay(10);
   
@@ -215,8 +214,10 @@ void loop() {
   }
   if(digitalRead(UP_BUTTON) == 0) {
     up();
-  }
-  
+  }  
+}
+
+void syncIfSentFail() {
   counter ++;
   if(counter % 1000 == 0) {
     if(turnedOn) {
@@ -227,17 +228,23 @@ void loop() {
   }
 }
 
-void checkTemperature(int temp) {
+bool checkTemperature(int temp) {
+  syncIfSentFail();
+  if(turnedOn) {
+    turnOff();
+    return false;
+  }
   if(turnedOn && temp >= highTemp) {
     currentTick = 0;
     turnOff();
-    return;
+    return true;
   }
   if((++currentTick) % gest != 0) {
-    return;
+    return true;
   }
   if(!turnedOn && temp <= lowTemp) {
     currentTick = 0;
     turnOn();
   }
+  return true;
 }
