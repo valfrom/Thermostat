@@ -153,8 +153,6 @@ void setup() {
   nokia.display();
   
   turnOff();
-  pinMode(BACKLIT_PIN, OUTPUT);
-  digitalWrite(BACKLIT_PIN, HIGH);
 }
 
 void up() {
