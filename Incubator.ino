@@ -67,7 +67,6 @@ OneWire oneWire(ONE_WIRE_BUS);
 // Pass our oneWire reference to Dallas Temperature. 
 DallasTemperature sensors(&oneWire);
 
-
 void checkTemperature(int temp);
 
 //This function will write a 2 byte integer to the eeprom at the specified address and address + 1
@@ -130,10 +129,7 @@ void setup() {
   }
   
   setTemp(t);
-  
-  int b = EEPROMReadInt(2);
-  setBacklitOn(b);
-  
+    
   man.workAround1MhzTinyCore(); //add this in order for transmitter to work with 1Mhz Attiny85/84
   man.setupTransmit(TX_PIN, MAN_300);
   
@@ -144,6 +140,8 @@ void setup() {
   pinMode(DOWN_BUTTON, INPUT_PULLUP);
   pinMode(UP_BUTTON, INPUT_PULLUP);
 
+  pinMode(BACKLIT_PIN, OUTPUT);
+
   pinMode(LOAD_PIN, OUTPUT);
   digitalWrite(LOAD_PIN, LOW);
   
@@ -153,6 +151,9 @@ void setup() {
   nokia.display();
   
   turnOff();
+  
+  int b = EEPROMReadInt(2);
+  setBacklitOn(b);
 }
 
 void up() {
@@ -168,7 +169,6 @@ void center() {
 }
 
 void loop() {
-
   sensors.requestTemperatures();
   
   CURSOR(0,0);
@@ -226,7 +226,6 @@ void loop() {
     }
   }
 }
-
 
 void checkTemperature(int temp) {
   if(turnedOn && temp >= highTemp) {
