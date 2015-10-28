@@ -17,17 +17,6 @@ Adafruit_PCD8544 nokia = Adafruit_PCD8544(3, 4, 5, 6, 7);  // create the LCD con
 #define CURSOR(x,y)  nokia.setCursor(x,y)  // we end up doing this a lot
 #define CONTRAST_VALUE 55
 
-volatile unsigned long time = 0;
-volatile unsigned long previousTime = 0;
-volatile unsigned long time2 = 0;
-
-volatile unsigned long duration = 0;
-volatile unsigned long startTime;
-
-volatile unsigned int tick = 0;
-
-volatile int state = 0;
-
 int lowTemp = 0;
 int highTemp = 0;
 int dstTemp = 1900;
@@ -58,7 +47,7 @@ char buffer[255] = {0};
 #define DOWN_BUTTON A2
 #define UP_BUTTON A3
 
-#define LOAD_PIN 11
+#define LOAD_PIN A0
 #define TX_PIN A1
 
 // Setup a oneWire instance to communicate with any OneWire devices (not just Maxim/Dallas temperature ICs)
@@ -94,18 +83,18 @@ void setTemp(int newTemp) {
 }
 
 void turnOn() {
-  digitalWrite(LOAD_PIN, HIGH);
-  for (int i=0;i<10;i++) {
-    man.transmit(man.encodeMessage(SENDER_ID, 1));
-  }
+  digitalWrite(LOAD_PIN, HIGH);  
+//  for (int i=0;i<10;i++) {
+//    man.transmit(man.encodeMessage(SENDER_ID, 1));
+//  }
   turnedOn = true;
 }
 
 void turnOff() {
   digitalWrite(LOAD_PIN, LOW);
-  for (int i=0;i<30;i++) {
-    man.transmit(man.encodeMessage(SENDER_ID, 0));
-  }
+//  for (int i=0;i<30;i++) {
+//    man.transmit(man.encodeMessage(SENDER_ID, 0));
+//  }
   turnedOn = false;
 }
 
@@ -130,8 +119,11 @@ void setup() {
   
   setTemp(t);
     
-  man.workAround1MhzTinyCore(); //add this in order for transmitter to work with 1Mhz Attiny85/84
-  man.setupTransmit(TX_PIN, MAN_300);
+//  man.workAround1MhzTinyCore(); //add this in order for transmitter to work with 1Mhz Attiny85/84
+//  man.setupTransmit(TX_PIN, MAN_300);
+
+//  man.setupReceive(TX_PIN, MAN_300);
+//  man.beginReceive();
   
   sensors.setResolution(TEMP_12_BIT);
   sensors.begin();
@@ -146,8 +138,7 @@ void setup() {
   digitalWrite(LOAD_PIN, LOW);
   
   nokia.begin(CONTRAST_VALUE);
-  nokia.fillScreen(1);  
-  nokia.setTextSize(2);
+  nokia.fillScreen(1);    
   nokia.display();
   
   turnOff();
@@ -168,16 +159,54 @@ void center() {
   setBacklitOn(!backlitOn);
 }
 
+int readTemp() {
+  int c = oldC;
+  if(c == 0 || counter % 10 == 0) {
+    sensors.requestTemperatures();
+    c = sensors.getTempCByIndex(0) * 100;
+  }
+    
+  return c;
+}
+
+uint8_t data;
+uint8_t id;
+uint8_t inputActivity = false;
+
 void loop() {
-  sensors.requestTemperatures();
   
-  CURSOR(0,0);
-  nokia.fillScreen(0);
+//  if (man.receiveComplete()) { //received something
+//    uint16_t m = man.getMessage();
+//    man.beginReceive(); //start listening for next message right after you retrieve the message
+//    if (man.decodeMessage(m, id, data)) { //extract id and data from message, check if checksum is correct
+//      CURSOR(0,0);
+//      nokia.fillScreen(0);
+//      sprintf(buffer, "D:%d ID:%d", data, id);
+//      nokia.print(buffer);    
+//      nokia.display();
+//    } else {
+//      CURSOR(0,0);
+//      nokia.fillScreen(0);
+//      nokia.print("CRC INVALID");    
+//      nokia.display();
+//    }
+//  }
+//  
+//  return;
+//  
+//  sensors.requestTemperatures();
   
-  int c = sensors.getTempCByIndex(0) * 100;
+  int c = oldC;
   
+  if(!inputActivity) {
+    c = readTemp();
+  }
+    
   if(c < 0) {
-    nokia.print("ERROR!\nTEMP\nSENSOR!");
+    CURSOR(0,0);
+    nokia.fillScreen(0);
+    nokia.setTextSize(2);
+    nokia.print("ERROR!\nTEMP\nSENSOR!");    
     nokia.display();
   }
   
@@ -198,22 +227,37 @@ void loop() {
       heat = "HEAT";
     }
     
-    sprintf(buffer, "T%d.%dC\n%s\nD%d.%dC", c1, c2, heat, d1, d2);
-  
+    sprintf(buffer, "T%d.%dC\n%s", c1, c2, heat);
+    
+    CURSOR(0, 0);    
+    nokia.fillScreen(0);
+    nokia.setTextSize(2);
+
+    nokia.print(buffer);
+    
+    CURSOR(0,34);
+    nokia.setTextSize(2);
+    sprintf(buffer, "D%d.%dC", d1, d2);
     nokia.print(buffer);
     nokia.display();
   }
   
-  delay(10);
+  oldC = c;
+  inputActivity = false;
+  
+  delay(100);
   
   if(digitalRead(CENTER_BUTTON) == 0) {
     center();
+    inputActivity = true;
   }
   if(digitalRead(DOWN_BUTTON) == 0) {
     down();
+    inputActivity = true;
   }
   if(digitalRead(UP_BUTTON) == 0) {
     up();
+    inputActivity = true;
   }  
 }
 
@@ -230,8 +274,10 @@ void syncIfSentFail() {
 
 bool checkTemperature(int temp) {
   syncIfSentFail();
-  if(turnedOn) {
-    turnOff();
+  if(temp < 0) {
+    if(turnedOn) {
+      turnOff();
+    }
     return false;
   }
   if(turnedOn && temp >= highTemp) {
